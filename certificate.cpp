@@ -26,6 +26,9 @@ int encrypt_aes_128(unsigned char *plaintext, int plaintext_len, unsigned char *
 
 	int ciphertext_len;
 
+	// openssl enc - d - aes - 128 - cbc - pass env : KEY - in file.ssl - out file.txt
+
+
 	/* Create and initialise the context */
 	if (!(ctx = EVP_CIPHER_CTX_new())) handleErrors();
 
@@ -75,6 +78,7 @@ int decrypt_aes_128(unsigned char *ciphertext, int ciphertext_len, unsigned char
 	* IV size for *most* modes is the same as the block size. For AES this
 	* is 128 bits */
 	// Cipher Block Chaining Mode (CBC)
+
 	if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_128_cbc(), NULL, key, iv))
 		handleErrors();
 
@@ -160,67 +164,67 @@ int Base64Encode(const unsigned char* buffer, size_t length, std::string& output
 
 int main(void)
 {
-	/* Set up the key and iv. Do I need to say to not hard code these in a
-	* real application? :-)
-	*/
-
-	/* A 256 bit key */
-	unsigned char *key = (unsigned char *)"01234567890123456789012345678901";
-	printf("secret key %s\n", key);
-
-
-	/* Message to be encrypted */
 	unsigned char *plaintext =
 		(unsigned char *)  "{_40_BYTES_SEQ_XXXXXXXXXXXXXXXXXXXXXXXXXX|_6_BYT|1446821786}";
-	printf("server_token %s\n", plaintext);
-	printf("server_token size %d\n", strlen((const char*)plaintext));
-
-	/* Buffer for ciphertext. Ensure the buffer is long enough for the
-	* ciphertext which may be longer than the plaintext, dependant on the
-	* algorithm and mode
-	*/
-	unsigned char ciphertext[128];
-
-	/* Buffer for the decrypted text */
-	unsigned char decryptedtext[128];
-
-	int decryptedtext_len, ciphertext_len;
-
 	/* Initialise the library */
 	ERR_load_crypto_strings();
 	OpenSSL_add_all_algorithms();
 	OPENSSL_config(NULL);
 
-	/* Encrypt the plaintext */
-	ciphertext_len = encrypt_aes_128(plaintext, strlen((char *)plaintext), key, 0,
+
+	const EVP_CIPHER *cipher;
+	const EVP_MD *dgst = NULL;
+	unsigned char key[EVP_MAX_KEY_LENGTH], iv[EVP_MAX_IV_LENGTH];
+	const char *password = "mypassword";
+	const unsigned char *salt = NULL;
+	int i;
+
+
+	cipher = EVP_get_cipherbyname("aes-128-cbc");
+	if (!cipher) { fprintf(stderr, "no such cipher\n"); return 1; }
+
+	dgst = EVP_get_digestbyname("md5");
+	if (!dgst) { fprintf(stderr, "no such digest\n"); return 1; }
+
+	if (!EVP_BytesToKey(cipher, dgst, salt,
+		(unsigned char *)password,
+		strlen(password), 1, key, iv))
+	{
+		fprintf(stderr, "EVP_BytesToKey failed\n");
+		return 1;
+	}
+
+	printf("Text/file.txt   :\n%s\n", plaintext);
+	printf("\nEmulate:\nopenssl enc -aes-128-cbc -k mypassword -nosalt -p\n");
+	printf("Key HEX:\n"); for (i = 0; i<cipher->key_len; ++i) { printf("%02x", key[i]); } printf("\n");
+	printf("IV HEX:\n"); for (i = 0; i<cipher->iv_len; ++i) { printf("%02x", iv[i]); } printf("\n");
+	printf("\nEmulate:\nopenssl enc -aes-128-cbc -pass pass:mypassword -p -nosalt -in file.txt -out file.bin\n");
+
+	unsigned char ciphertext[128];
+	unsigned char decryptedtext[128];
+	int decryptedtext_len, ciphertext_len;
+
+	ciphertext_len = encrypt_aes_128(plaintext, strlen((char *)plaintext), key, iv,
 		ciphertext);
 
-	/* Do something useful with the ciphertext here */
-//	printf("Ciphertext is:\n");
-//	BIO_dump_fp(stdout, (const char *)ciphertext, ciphertext_len);
+	printf("\ncipher is:\n");
+	BIO_dump_fp(stdout, (const char *)ciphertext, ciphertext_len);
 
-	// base64 it
 	std::string base64EncodeOutput;
-	// to do check out
 	Base64Encode(ciphertext, ciphertext_len, base64EncodeOutput);
 
-	printf("AES_128/Base64 server_token %s\n", base64EncodeOutput.c_str());
-	printf("AES_128/Base64 server_token size %d\n", base64EncodeOutput.size());
+	printf("\nAES_128/Base64 server_token:\n%s\n", base64EncodeOutput.c_str());
+	printf("AES_128/Base64 server_token size: %d\n", base64EncodeOutput.size());
 
 
 	std::vector<byte> cipher_new;
 	Base64Decode(base64EncodeOutput.c_str(), cipher_new);
 
-	/* Decrypt the ciphertext */
-	//unsigned char *key1 = (unsigned char *)"11234567890123456789012345678901";
-	decryptedtext_len = decrypt_aes_128(cipher_new.data(), cipher_new.size(), key, 0,
+	decryptedtext_len = decrypt_aes_128(cipher_new.data(), cipher_new.size(), key, iv,
 		decryptedtext);
-
-	/* Add a NULL terminator. We are expecting printable text */
 	decryptedtext[decryptedtext_len] = '\0';
 
-	/* Show the decrypted text */
-	printf("Decrypted text is:\n");
+	printf("\nDecrypted text is:\n");
 	printf("%s\n", decryptedtext);
 
 	/* Clean up */
