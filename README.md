@@ -5,9 +5,6 @@
 
 - crypto (AES 128 CBC Padding 16) / BASE 64
 
-    SEQ - user guuid - 40 bytes
-    CALL_ID - unique call identifier (short uid 6 chars) base 64 symbols based
-    UTC_EXPIRATION_TIME - UTC_EXPIRATION_TIME format default exp time: UTC time now + 60sec
     2`31 =2147483648 - 10 bytes 
 
 Text - 60, AES - (cbc padding - 16byte) 64bytes, Base 64 (/3*4) - ~ 86 bytes  
