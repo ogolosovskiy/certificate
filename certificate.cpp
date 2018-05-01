@@ -5,11 +5,13 @@
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <openssl/buffer.h>
-#include "openssl\applink.c"
+// #include "openssl\applink.c"
 #include <stdio.h>
 #include <string>
 #include <vector>
 #include <assert.h>
+
+typedef unsigned char byte;
 
 void handleErrors(void)
 {
@@ -162,74 +164,123 @@ int Base64Encode(const unsigned char* buffer, size_t length, std::string& output
 	return (0); //success
 }
 
-int main(void)
+
+// retrurn error, 0 means sucess
+// encrypts binary by password, encrypted_binary is encrypted binary 128 block
+int encrypt(byte const* binary, size_t binary_len, byte const* password, size_t password_len, byte encrypted_binary[128], size_t& encrypted_binary_len)
 {
-	unsigned char *plaintext =
-		(unsigned char *)  "{_40_BYTES_SEQ_XXXXXXXXXXXXXXXXXXXXXXXXXX|_6_BYT|1446821786}";
+
 	/* Initialise the library */
 	ERR_load_crypto_strings();
 	OpenSSL_add_all_algorithms();
 	OPENSSL_config(NULL);
+	encrypted_binary_len = 0;
+	memset(encrypted_binary, 0, sizeof(encrypted_binary));
 
-
-	const EVP_CIPHER *cipher;
-	const EVP_MD *dgst = NULL;
-	unsigned char key[EVP_MAX_KEY_LENGTH], iv[EVP_MAX_IV_LENGTH];
-	const char *password = "mypassword";
-	const unsigned char *salt = NULL;
-	int i;
-
-
+	/* load encription alghoirithms */
+	const EVP_CIPHER *cipher = 0;
+	const EVP_MD *dgst = 0;
 	cipher = EVP_get_cipherbyname("aes-128-cbc");
 	if (!cipher) { fprintf(stderr, "no such cipher\n"); return 1; }
-
 	dgst = EVP_get_digestbyname("md5");
-	if (!dgst) { fprintf(stderr, "no such digest\n"); return 1; }
+	if (!dgst) { fprintf(stderr, "no such digest\n"); return 2; }
 
-	if (!EVP_BytesToKey(cipher, dgst, salt,
-		(unsigned char *)password,
-		strlen(password), 1, key, iv))
+
+	/* create encription key from password */
+	const unsigned char *salt = NULL;
+	unsigned char key[EVP_MAX_KEY_LENGTH], iv[EVP_MAX_IV_LENGTH];
+	if (!EVP_BytesToKey(cipher, dgst, salt, password, password_len, 1, key, iv))
 	{
 		fprintf(stderr, "EVP_BytesToKey failed\n");
-		return 1;
+		return 3;
 	}
 
-	printf("Text/file.txt   :\n%s\n", plaintext);
+	/* encryption */
+	encrypted_binary_len = encrypt_aes_128(const_cast<byte*>(binary), binary_len, key, iv, encrypted_binary);
+
+	/* Clean up */
+	EVP_cleanup();
+	ERR_free_strings();
+
+	return 0;
+
+}
+
+// retrurn error, 0 means sucess
+int decript(byte const* encrypted_binary, size_t encrypted_binary_len, byte const* password, size_t password_len, byte decrypted_binary[128], size_t& decripted_binary_len)
+{
+	/* Initialise the library */
+	ERR_load_crypto_strings();
+	OpenSSL_add_all_algorithms();
+	OPENSSL_config(NULL);
+	decripted_binary_len = 0;
+	memset(decrypted_binary, 0, sizeof(decrypted_binary));
+
+	/* load encription alghoirithms */
+	const EVP_CIPHER *cipher = 0;
+	const EVP_MD *dgst = 0;
+	cipher = EVP_get_cipherbyname("aes-128-cbc");
+	if (!cipher) { fprintf(stderr, "no such cipher\n"); return 1; }
+	dgst = EVP_get_digestbyname("md5");
+	if (!dgst) { fprintf(stderr, "no such digest\n"); return 2; }
+
+	/* create encription key from password */
+	const unsigned char *salt = NULL;
+	unsigned char key[EVP_MAX_KEY_LENGTH], iv[EVP_MAX_IV_LENGTH];
+	if (!EVP_BytesToKey(cipher, dgst, salt, password, password_len, 1, key, iv))
+	{
+		fprintf(stderr, "EVP_BytesToKey failed\n");
+		return 3;
+	}
+
+	/* Decription */
+	decripted_binary_len = decrypt_aes_128(const_cast<byte*>(encrypted_binary), encrypted_binary_len, key, iv, decrypted_binary);
+	decrypted_binary[decripted_binary_len] = 0;
+
+	/* Clean up */
+	EVP_cleanup();
+	ERR_free_strings();
+
+	return 0;
+}
+
+int main(void)
+{
+
+	char const *plaintext = "secret+string_need_to_be_encripted";
+	char const *password = "mypassword_secret";
+
+	byte encrypted_binary[128]; // 128 because its aes-128 block
+	size_t encrypted_binary_size = 0;
+	int res1 = encrypt((byte const*) plaintext, strlen(plaintext), (byte const*)password, strlen(password), encrypted_binary, encrypted_binary_size);
+	if (res1 != 0)
+		return 1;
+
+	std::string base64EncodeOutput;
+	Base64Encode(encrypted_binary, encrypted_binary_size, base64EncodeOutput);
+
+	printf("AES_128/Base64 token:\n%s\n", base64EncodeOutput.c_str());
+
+	std::vector<byte> cipher_new;
+	Base64Decode(base64EncodeOutput.c_str(), cipher_new);
+
+	byte decrypted_binary[128]; // 128 because its aes-128 block
+	size_t decrypted_binary_size = 0;
+	int res2 = decript(cipher_new.data(), cipher_new.size(), (byte const*)password, strlen(password), decrypted_binary, decrypted_binary_size);
+	if (res1 != 0)
+		return 1;
+
+
+/*	printf("Text/file.txt   :\n%s\n", plaintext);
 	printf("\nEmulate:\nopenssl enc -aes-128-cbc -k mypassword -nosalt -p\n");
 	printf("Key HEX:\n"); for (i = 0; i<cipher->key_len; ++i) { printf("%02x", key[i]); } printf("\n");
 	printf("IV HEX:\n"); for (i = 0; i<cipher->iv_len; ++i) { printf("%02x", iv[i]); } printf("\n");
 	printf("\nEmulate:\nopenssl enc -aes-128-cbc -pass pass:mypassword -p -nosalt -in file.txt -out file.bin\n");
 
-	unsigned char ciphertext[128];
-	unsigned char decryptedtext[128];
-	int decryptedtext_len, ciphertext_len;
-
-	ciphertext_len = encrypt_aes_128(plaintext, strlen((char *)plaintext), key, iv,
-		ciphertext);
 
 	printf("\ncipher is:\n");
 	BIO_dump_fp(stdout, (const char *)ciphertext, ciphertext_len);
-
-	std::string base64EncodeOutput;
-	Base64Encode(ciphertext, ciphertext_len, base64EncodeOutput);
-
-	printf("\nAES_128/Base64 server_token:\n%s\n", base64EncodeOutput.c_str());
-	printf("AES_128/Base64 server_token size: %d\n", base64EncodeOutput.size());
-
-
-	std::vector<byte> cipher_new;
-	Base64Decode(base64EncodeOutput.c_str(), cipher_new);
-
-	decryptedtext_len = decrypt_aes_128(cipher_new.data(), cipher_new.size(), key, iv,
-		decryptedtext);
-	decryptedtext[decryptedtext_len] = '\0';
-
-	printf("\nDecrypted text is:\n");
-	printf("%s\n", decryptedtext);
-
-	/* Clean up */
-	EVP_cleanup();
-	ERR_free_strings();
+	*/
 
 	return 0;
 }
