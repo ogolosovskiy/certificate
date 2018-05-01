@@ -1,5 +1,8 @@
 # certificate
 
+This is simple c++ example how to encrypt / decript something by AES 128.  
+Dependences - openssl.  
+Windows openssl - https://slproweb.com/products/Win32OpenSSL.html  
 
 
 
