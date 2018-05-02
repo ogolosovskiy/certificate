@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 #include <assert.h>
+#include "getopt.h"
 
 typedef unsigned char byte;
 
@@ -244,11 +245,28 @@ int decript(byte const* encrypted_binary, size_t encrypted_binary_len, byte cons
 	return 0;
 }
 
-int main(void)
+int main(int argc, char* argv[])
 {
+	std::string token;
 
-	char const *plaintext = "secret+string_need_to_be_encripted";
-	char const *password = "mypassword_secret";
+	int opt;
+	while ((opt = getopt(argc, argv, "t:")) != -1) {
+		switch (opt) {
+		case 't':
+			if (optarg)
+				token = optarg;
+		}
+	}
+
+	if (token.empty())
+	{
+		printf("Usage:\n");
+		printf("certificate.exe -t 1527638400:\\Device\\NPF_{118B3D7D-8E7F-491F-BF31-4D58705FC810}\n");
+		return 1;
+	}
+
+	char const *plaintext = "1527638400:\\Device\\NPF_{118B3D7D-8E7F-491F-BF31-4D58705FC810}";
+	char const *password = "ZjEHD46jr2bm44rN8W3GgYw9vh85Bc0r";
 
 	byte encrypted_binary[128]; // 128 because its aes-128 block
 	size_t encrypted_binary_size = 0;
@@ -267,7 +285,7 @@ int main(void)
 	byte decrypted_binary[128]; // 128 because its aes-128 block
 	size_t decrypted_binary_size = 0;
 	int res2 = decript(cipher_new.data(), cipher_new.size(), (byte const*)password, strlen(password), decrypted_binary, decrypted_binary_size);
-	if (res1 != 0)
+	if (res2 != 0)
 		return 1;
 
 
