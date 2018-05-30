@@ -265,7 +265,7 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	char const *plaintext = "1527638400:\\Device\\NPF_{118B3D7D-8E7F-491F-BF31-4D58705FC810}";
+	char const *plaintext = token.c_str();//"1527638400:\\Device\\NPF_{118B3D7D-8E7F-491F-BF31-4D58705FC810}";
 	char const *password = "ZjEHD46jr2bm44rN8W3GgYw9vh85Bc0r";
 
 	byte encrypted_binary[128]; // 128 because its aes-128 block
